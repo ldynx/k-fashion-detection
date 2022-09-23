@@ -628,6 +628,18 @@ class LoadImagesAndLabels(Dataset):
             # labels = cutout(img, labels, p=0.5)
             # nl = len(labels)  # update after cutout
 
+        # CHECK: img and bounding boxes
+        # img_vis = img.copy()
+        # img_vis = img_vis.astype(np.float32) / 255.  # CHW to HWC
+        # img_h, img_w = img_vis.shape[0], img_vis.shape[1]
+        # for box in labels:
+        #     x, y, w, h = box[1] * img_w, box[2] * img_h, box[3] * img_w, box[4] * img_h
+        #     cv2.rectangle(img_vis, (int(x - w / 2), int(y - h / 2)), (int(x + w / 2), int(y + h / 2)),
+        #                   ((box[0] + 1) / 4, 1 - (box[0] + 1) / 4, 0))
+        # cv2.imshow('img', img_vis)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
         labels_out = torch.zeros((nl, 6))
         if nl:
             labels_out[:, 1:] = torch.from_numpy(labels)
@@ -693,6 +705,19 @@ class LoadImagesAndLabels(Dataset):
 
             # Labels
             labels, segments = self.labels[index].copy(), self.segments[index].copy()
+
+            # CHECK: are labels correct?
+            # img_vis = img.copy()
+            # img_vis = img_vis.astype(np.float32) / 255.  # CHW to HWC
+            # img_h, img_w = img.shape[0], img.shape[1]
+            # for box in labels:
+            #     x, y, w, h = box[1] * img_w, box[2] * img_h, box[3] * img_w, box[4] * img_h
+            #     cv2.rectangle(img_vis, (int(x - w/2), int(y - h/2)), (int(x + w/2), int(y + h/2)),
+            #                   ((box[0] + 1) / 4, 1 - (box[0] + 1) / 4, 0))
+            # cv2.imshow('img', img_vis)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+
             if labels.size:
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w, h, padw, padh)  # normalized xywh to pixel xyxy format
                 segments = [xyn2xy(x, w, h, padw, padh) for x in segments]
@@ -716,6 +741,17 @@ class LoadImagesAndLabels(Dataset):
                                            shear=self.hyp['shear'],
                                            perspective=self.hyp['perspective'],
                                            border=self.mosaic_border)  # border to remove
+
+        # CHECK: are labels correct in augmented images?
+        # img_vis = img4.copy()
+        # img_vis = img_vis.astype(np.float32) / 255.  # CHW to HWC
+        # for box in labels4:
+        #     x1, y1, x2, y2 = box[1], box[2], box[3], box[4]
+        #     cv2.rectangle(img_vis, (int(x1), int(y1)), (int(x2), int(y2)),
+        #                   ((box[0] + 1) / 4, 1 - (box[0] + 1) / 4, 0))
+        # cv2.imshow('img', img_vis)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
         return img4, labels4
 
