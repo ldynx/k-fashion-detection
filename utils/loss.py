@@ -153,7 +153,13 @@ class ComputeLoss:
                 # Classification
                 if self.nc > 1:  # cls loss (only if multiple classes)
                     t = torch.full_like(pcls, self.cn, device=self.device)  # targets
-                    t[range(n), tcls[i]] = self.cp
+                    if len(tcls[i]) == 1:
+                        t[range(n), tcls[i]] = self.cp
+                    else:
+                        # ------- K-FASHION HEADS -------
+                        for j in range(tcls[i].size(-1)):
+                            t[range(n), tcls[i][:, j]] = self.cp
+                        # -------------------------------
                     lcls += self.BCEcls(pcls, t)  # BCE
 
                 # Append targets to text file
@@ -178,7 +184,7 @@ class ComputeLoss:
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         tcls, tbox, indices, anch = [], [], [], []
-        gain = torch.ones(7, device=self.device)  # normalized to gridspace gain
+        gain = torch.ones(targets.size(-1) + 1, device=self.device)  # normalized to gridspace gain
         ai = torch.arange(na, device=self.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
         targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None]), 2)  # append anchor indices
 
@@ -221,7 +227,14 @@ class ComputeLoss:
 
             # Define
             bc, gxy, gwh, a = t.chunk(4, 1)  # (image, class), grid xy, grid wh, anchors
-            a, (b, c) = a.long().view(-1), bc.long().T  # anchors, image, class
+            # ------- K-FASHION HEADS -------
+            if a.size(-1) > 1:
+                b, c = bc.long().T
+                c = torch.cat([c.unsqueeze(-1), a[:, :-1].long()], -1)
+                a = a[:, -1].long().view(-1)
+            # -------------------------------
+            else:
+                a, (b, c) = a.long().view(-1), bc.long().T  # anchors, image, class
             gij = (gxy - offsets).long()
             gi, gj = gij.T  # grid indices
 

@@ -640,7 +640,7 @@ class LoadImagesAndLabels(Dataset):
         # cv2.waitKey(0)
         # cv2.destroyAllWindows()
 
-        labels_out = torch.zeros((nl, 6))
+        labels_out = torch.zeros((nl, labels.shape[1] + 1))
         if nl:
             labels_out[:, 1:] = torch.from_numpy(labels)
 
@@ -966,9 +966,9 @@ def verify_image_label(args):
                 lb = np.array(lb, dtype=np.float32)
             nl = len(lb)
             if nl:
-                assert lb.shape[1] == 5, f'labels require 5 columns, {lb.shape[1]} columns detected'
+                assert (lb.shape[1] == 5) or (lb.shape[1] == 6), f'labels require 5 columns, {lb.shape[1]} columns detected'
                 assert (lb >= 0).all(), f'negative label values {lb[lb < 0]}'
-                assert (lb[:, 1:] <= 1).all(), f'non-normalized or out of bounds coordinates {lb[:, 1:][lb[:, 1:] > 1]}'
+                assert (lb[:, 1:5] <= 1).all(), f'non-normalized or out of bounds coordinates {lb[:, 1:][lb[:, 1:] > 1]}'
                 _, i = np.unique(lb, axis=0, return_index=True)
                 if len(i) < nl:  # duplicate row check
                     lb = lb[i]  # remove duplicates

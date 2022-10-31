@@ -7,7 +7,7 @@
 #└── val.txt
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-path: /home/yeji/Documents/자료/과제/복합대화/K-Fashion-mini #/media/yeji/a9dd48dc-0ad9-48ab-aa70-fd748b4afcb8/mipal/K-Fashion  # dataset root dir
+path: /home/yeji/Documents/자료/과제/복합대화/K-Fashion-mini-2  #/media/mipal/5b0ca16a-98d2-4e68-9490-86f6df9972ee/data/K-Fashion  # dataset root dir
 train: train.txt  # train images (relative to 'path') 118287 images
 val: val.txt  # val images (relative to 'path') 5000 images
 test: val.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794
@@ -18,3 +18,14 @@ names:
   1: 하의
   2: 아우터
   3: 원피스
+
+names2:
+  0: 블랙, 그레이
+  1: 화이트
+  2: 레드, 와인
+  3: 핑크, 퍼플, 라벤더
+  4: 베이지, 브라운
+  5: 오렌지, 옐로우, 골드
+  6: 그린, 카키
+  7: 블루, 네이비, 스카이블루, 민트
+  8: 네온
