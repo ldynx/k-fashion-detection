@@ -52,7 +52,7 @@ def K_Fashion_get_label_1(label_dict, filename=None):
 
 def K_Fashion_get_label_2(label_dict, filename=None):
     category_cls_map = {'상의': 0, '하의': 1, '아우터': 2, '원피스': 3}
-    color_cls_map = {'블랙': 0, '그레이': 0, '화이트': 1, '레드': 2, '와인': 2, '핑크': 3, '퍼플': 3, '라벤더': 3,
+    color_cls_map = {'블랙': 0, '그레이': 0, '실버': 0, '화이트': 1, '레드': 2, '와인': 2, '핑크': 3, '퍼플': 3, '라벤더': 3,
                      '베이지': 4, '브라운': 4, '오렌지': 5, '옐로우': 5, '골드': 5, '그린': 6, '카키': 6,
                      '블루': 7, '네이비': 7, '스카이블루': 7, '민트': 7, '네온': 8}
     img_w, img_h = label_dict['이미지 정보']['이미지 너비'], label_dict['이미지 정보']['이미지 높이']
@@ -96,11 +96,14 @@ def K_Fashion_datafiles(data_path, mode, exp):
     jsonfile_list = glob.glob(str(data_path / 'images' / mode_name) + '/*/*.json')
     pbar = tqdm.tqdm(total=len(jsonfile_list), leave=True, desc='processing {} label'.format(mode), dynamic_ncols=True)
     accumulated_iter = 0
+    data_list = []
     for jsonfile in jsonfile_list:
         # read json file
         with open(jsonfile, 'r') as f1:
             label_dict = json.load(f1)
         labels = globals()['K_Fashion_get_label_' + exp](label_dict, jsonfile)
+        if len(labels) == 0:
+            continue
 
         # save yolo-style label
         save_dir, save_name = jsonfile.replace('images', 'labels').rsplit('/', 1)
@@ -109,13 +112,14 @@ def K_Fashion_datafiles(data_path, mode, exp):
         for l in labels:
             f2.write(l)
         f2.close()
+        data_list.append(jsonfile.replace('.json', '.jpg'))
 
         accumulated_iter += 1
         pbar.update()
         pbar.set_postfix(dict(total_it=accumulated_iter))
 
-    # output data list
-    data_list = glob.glob(str(data_path / 'images' / mode_name) + '/*/*.jpg')
+    # # output data list
+    # data_list = glob.glob(str(data_path / 'images' / mode_name) + '/*/*.jpg')
     return data_list
 
 
