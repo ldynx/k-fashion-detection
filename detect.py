@@ -28,6 +28,7 @@ import argparse
 import os
 import platform
 import sys
+import yaml
 from pathlib import Path
 
 import torch
@@ -75,6 +76,7 @@ def run(
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
+        extract=False
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -92,6 +94,13 @@ def run(
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
+    if 'k-fashion' in data:
+        if isinstance(data, (str, Path)):
+            with open(data, errors='ignore') as f:
+                data = yaml.safe_load(f)  # dictionary
+            names2 = data['names2']
+    else:
+        names2 = None
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
     # Dataloader
@@ -118,11 +127,19 @@ def run(
         # Inference
         with dt[1]:
             visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
-            pred = model(im, augment=augment, visualize=visualize)
+            pred = model(im, augment=augment, visualize=visualize, extract=extract)
 
         # NMS
         with dt[2]:
-            pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+            ####### EXTRACT FEATURES #######
+            if extract:
+                pred, features = non_max_suppression(
+                    pred[:2], conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det, features=pred[2:],
+                    nc2=len(names2) if names2 else None
+                )
+            ################################
+            else:
+                pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
 
         # Second-stage classifier (optional)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
@@ -148,12 +165,16 @@ def run(
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
 
                 # Print results
-                for c in det[:, -1].unique():
+                for c in det[:, 5].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results
-                for *xyxy, conf, cls in reversed(det):
+                # for *xyxy, conf, cls in reversed(det):
+                for j in range(det.size(0)):
+                    xyxy, conf, cls = list(reversed(det)[j, :4]), reversed(det)[j, 4], reversed(det)[j, 5]
+                    if names2:
+                        conf2, cls2 = reversed(det)[j, 6], reversed(det)[j, 7]
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
@@ -162,7 +183,8 @@ def run(
 
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
-                        label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
+                        label_str = f'{names[c]} {names2[int(cls2)]} {conf:.2f}' if names2 else f'{names[c]} {conf:.2f}'
+                        label = None if hide_labels else (names[c] if hide_conf else label_str)
                         annotator.box_label(xyxy, label, color=colors(c, True))
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
@@ -238,6 +260,7 @@ def parse_opt():
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--vid-stride', type=int, default=1, help='video frame-rate stride')
+    parser.add_argument('--extract', default=False, action='store_true', help='get anchor features')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(vars(opt))

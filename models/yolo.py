@@ -183,9 +183,13 @@ class DetectionModel(BaseModel):
         self.info()
         LOGGER.info('')
 
-    def forward(self, x, augment=False, profile=False, visualize=False):
+    def forward(self, x, augment=False, profile=False, visualize=False, extract=False):
         if augment:
             return self._forward_augment(x)  # augmented inference, None
+        ####### EXTRACT FEATURES #######
+        if extract:
+            return self._forward_extract(x)
+        ################################
         return self._forward_once(x, profile, visualize)  # single-scale inference, train
 
     def _forward_augment(self, x):
@@ -201,6 +205,15 @@ class DetectionModel(BaseModel):
             y.append(yi)
         y = self._clip_augmented(y)  # clip augmented tails
         return torch.cat(y, 1), None  # augmented inference, train
+
+    def _forward_extract(self, x):
+        y, dt = [], []  # outputs
+        for m in self.model:
+            if m.f != -1:  # if not from previous layer
+                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            x = m(x)  # run
+            y.append(x if m.i in self.save else None)  # save output
+        return x + (y[17], y[20], y[23])
 
     def _descale_pred(self, p, flips, scale, img_size):
         # de-scale predictions following augmented inference (inverse operation)

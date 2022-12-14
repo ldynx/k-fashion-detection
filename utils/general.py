@@ -806,7 +806,9 @@ def non_max_suppression(prediction,
                         agnostic=False,
                         multi_label=False,
                         labels=(),
-                        max_det=300):
+                        max_det=300,
+                        nc2=None,
+                        features=None):
     """Non-Maximum Suppression (NMS) on inference results to reject overlapping bounding boxes
 
     Returns:
@@ -839,6 +841,16 @@ def non_max_suppression(prediction,
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
         x = x[xc[xi]]  # confidence
+        if features:
+            na = prediction.size(1) // sum([feature.size(2) * feature.size(3) for feature in features])
+            start = 0
+            conf_features = []
+            for feature in features:
+                end = start + feature.size(2) * feature.size(3) * na
+                feature_fl = feature.flatten(start_dim=2, end_dim=3).permute(0, 2, 1).repeat_interleave(na, dim=1)
+                conf_features += [feature_fl[:, xc[xi, start:end], :]]
+                start = end
+            features = conf_features
 
         # Cat apriori labels if autolabelling
         if labels and len(labels[xi]):
@@ -864,8 +876,24 @@ def non_max_suppression(prediction,
             i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
             x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
         else:  # best class only
-            conf, j = x[:, 5:].max(1, keepdim=True)
-            x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+            if nc2:
+                conf1, j1 = x[:, 5:5 + (nc - nc2)].max(1, keepdim=True)
+                conf2, j2 = x[:, 5 + (nc - nc2):].max(1, keepdim=True)
+                mask = (conf1.view(-1) > conf_thres) & (conf2.view(-1) > conf_thres)
+                x = torch.cat((box, conf1, j1.float(), conf2, j2.float()), 1)[mask]
+            else:
+                conf, j = x[:, 5:].max(1, keepdim=True)
+                x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+                mask = conf.view(-1) > conf_thres
+
+            if features:
+                start = 0
+                conf_features = []
+                for feature in features:
+                    end = start + feature.size(1)
+                    conf_features += [feature[:, mask[start:end], :]]
+                    start = end
+                features = conf_features
 
         # Filter by class
         if classes is not None:
@@ -881,6 +909,13 @@ def non_max_suppression(prediction,
             continue
         elif n > max_nms:  # excess boxes
             x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
+            if features:
+                indices = x[:, 4].argsort(descending=True)[:max_nms]
+                n_features = torch.cumsum(torch.tensor([feature.size(1) for feature in features]), dim=0)
+                i_bin = torch.bucketize(indices, n_features.to(x.device))
+                i_features = []
+                for b, j in zip(i_bin, indices):
+                    i_features += [features[b][:, j - n_features[b - 1], :]]
 
         # Batched NMS
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
@@ -900,6 +935,14 @@ def non_max_suppression(prediction,
         if (time.time() - t) > time_limit:
             LOGGER.warning(f'WARNING: NMS time limit {time_limit:.3f}s exceeded')
             break  # time limit exceeded
+
+        if features:
+            n_features = torch.cumsum(torch.tensor([feature.size(1) for feature in features]), dim=0)
+            i_bin = torch.bucketize(i, n_features.to(i.device), right=True)
+            i_features = []
+            for b, j in zip(i_bin, i):
+                i_features += [features[b][:, j - n_features[b - 1], :]]
+            return output, i_features
 
     return output
 
